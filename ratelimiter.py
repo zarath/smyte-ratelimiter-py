@@ -4,7 +4,8 @@ derived and using from py-redis.
 """
 
 import redis
-from redis.client import BasePipeline, dict_merge, string_keys_to_dict
+from redis.client import BasePipeline, bool_ok, dict_merge, \
+    string_keys_to_dict
 
 def _xtra_params(refill, take, timestamp, strict):
     """
@@ -31,7 +32,20 @@ class SmyteRatelimiter(redis.StrictRedis):
 
     # Overridden callbacks
     RESPONSE_CALLBACKS = dict_merge(
+        # TODO:
+        #
+        #   { "compact", { &RedisHandler::compactCommand, 0, 3 } },
+        #   { "getmeta", { &RedisHandler::getMetaCommand, 1, 1 } },
+        #   { "monitor", { &RedisHandler::monitorCommand, 0, 0 } },
+        #   { "setready", { &RedisHandler::setReadyCommand, 0, 0 } },
+        #   { "select", { &RedisHandler::selectCommand, 1, 1 } },
+        #   { "setmeta", { &RedisHandler::setMetaCommand, 2, 2 } },
         redis.StrictRedis.RESPONSE_CALLBACKS,
+        {
+            'READY': int,
+            'SLEEP': bool_ok,
+            'THAW': bool_ok,
+        },
         string_keys_to_dict('RL.REDUCE RL.GET RL.PREDUCE RL.PGET', int)
     )
 
@@ -43,7 +57,6 @@ class SmyteRatelimiter(redis.StrictRedis):
         atomic, pipelines are useful for reducing the back-and-forth overhead
         between the client and server.
         """
-
         if transaction:
             raise redis.RedisError("PIPELINE transaction not implemented")
         return SmyteRatelimiterPipeline(
@@ -51,6 +64,18 @@ class SmyteRatelimiter(redis.StrictRedis):
             self.response_callbacks,
             transaction,
             shard_hint)
+
+    def freeze(self):
+        """
+        #TODO read source for function description (opposite of thaw ;-) )
+        """
+        return self.execute_command("FREEZE")
+
+    def ready(self):
+        """
+        #TODO read source for function description
+        """
+        return self.execute_command("READY")
 
     def rl_reduce(self, key, maximum, refilltime,
                   refill=0, take=1, timestamp=0, strict=False):
@@ -66,7 +91,6 @@ class SmyteRatelimiter(redis.StrictRedis):
         timestamp. Strict defines if rate limit is triggered and we’ll want to
         continue blocking traffic until the user stops sending traffic.
         """
-
         xtra = _xtra_params(refill, take, timestamp, strict)
         return self.execute_command("RL.REDUCE", key, maximum, refilltime,
                                     *xtra)
@@ -76,7 +100,6 @@ class SmyteRatelimiter(redis.StrictRedis):
         Same as rl_reduce, except rl_get does not reduce the number of
         tokens in the bucket.
         """
-
         return self.execute_command("RL.GET", key, maximum, refilltime)
 
     def rl_preduce(self, key, maximum, refilltime,
@@ -84,7 +107,6 @@ class SmyteRatelimiter(redis.StrictRedis):
         """
         Same as rl_preduce, but uses milliseconds instead of seconds.
         """
-
         xtra = _xtra_params(refill, take, timestamp, strict)
         return self.execute_command("RL.PREDUCE", key, maximum, refilltime,
                                     *xtra)
@@ -93,9 +115,19 @@ class SmyteRatelimiter(redis.StrictRedis):
         """
         Same as rl_get, but uses milliseconds instead of seconds.
         """
-
         return self.execute_command("RL.PGET", key, maximum, refilltime)
 
+    def sleep(self, msec):
+        """
+        Wait msec milliseconds.
+        """
+        return self.execute_command("SLEEP", msec)
+
+    def thaw(self):
+        """
+        #TODO read source for function description (opposite of freeze ;-) )
+        """
+        return self.execute_command("THAW")
 
 class SmyteRatelimiterPipeline(BasePipeline, SmyteRatelimiter):
     """
