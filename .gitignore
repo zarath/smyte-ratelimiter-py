@@ -8,6 +8,10 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+<<<<<<< HEAD
+=======
+env/
+>>>>>>> 8afd3ba63ffa9b470172870fd325cd8b95f5d1b3
 build/
 develop-eggs/
 dist/
@@ -78,10 +82,16 @@ celerybeat-schedule
 # SageMath parsed files
 *.sage.py
 
-# Environments
 .env
 .venv
 env/
+=======
+# dotenv
+.env
+
+# virtualenv
+.venv
+>>>>>>> 8afd3ba63ffa9b470172870fd325cd8b95f5d1b3
 venv/
 ENV/
 
